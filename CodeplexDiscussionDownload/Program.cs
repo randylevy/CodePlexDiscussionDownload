@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
-
+using Fclp;
 using HtmlAgilityPack;
 using Newtonsoft.Json;
 
@@ -15,40 +14,73 @@ namespace CodeplexDiscussionDownload
     {
         private static string logFileName;
 
-        private static void Main()
+        private static void Main(string[] args)
         {
-            var configuration = LoadConfiguration();
-
-            logFileName = Path.Combine(configuration.OutputFolder, configuration.LogFileName);
-
-            DownloadForums(configuration);
-        }
-
-        private static Configuration LoadConfiguration()
-        {
-            var codePlexForums = ConfigurationManager.AppSettings["codePlexForums"];
-            var logFilename = ConfigurationManager.AppSettings["logFileName"];
-            var pageSize = ConfigurationManager.AppSettings["pageSize"] ?? "100";
-            var outputFolder = ConfigurationManager.AppSettings["outputFolder"] ?? "output";
-
-            return new Configuration(codePlexForums, logFilename, pageSize, outputFolder);
-        }
-
-        private static void DownloadForums(Configuration config)
-        {
-            foreach (var forumName in config.ForumNames)
+            var parser = CreateCommandLineParser();
+            var result = parser.Parse(args);
+            if (result.HasErrors)
             {
-                var forumOutputFolder = Path.Combine(config.OutputFolder, forumName);
+                parser.HelpOption.ShowHelp(parser.Options);
+                Console.WriteLine(result.ErrorText);
+
+                return;
+            }
+
+            if (result.HelpCalled)
+            {
+                return;
+            }
+
+            logFileName = Path.Combine(parser.Object.OutputDirectory, parser.Object.Logfile);
+            DownloadForums(parser.Object);
+        }
+
+        private static FluentCommandLineParser<ApplicationArguments> CreateCommandLineParser()
+        {
+            var parser = new FluentCommandLineParser<ApplicationArguments>();
+
+            parser.Setup(arg => arg.CodePlexForums)
+                .As('f', "forums")
+                .WithDescription("List of CodePlex Forums to download.")
+                .Required();
+
+            parser.Setup(arg => arg.OutputDirectory)
+                .As('o', "outputDirectory")
+                .SetDefault(Path.Combine(Environment.CurrentDirectory, "output"))
+                .WithDescription("Output directory where files are written. Default value is 'output'.");
+
+            parser.Setup(arg => arg.Logfile)
+                .As('l', "logfile")
+                .SetDefault("codeplex_discussion_download.log")
+                .WithDescription("Name of the logfile.  Default value is 'codeplex_discussion_download.log'.");
+
+            parser.Setup(arg => arg.PageSize)
+                .As('p', "pageSize")
+                .SetDefault(100)
+                .WithDescription("The number of posts on a generated HTML page.  Default value is 100.");
+
+            parser.SetupHelp("?", "h", "help")
+                .Callback(text => Console.WriteLine(text))
+                .WithHeader("Usage: CodePlexDiscussionDownload: ");
+
+            return parser;
+        }
+
+        private static void DownloadForums(ApplicationArguments appArgs)
+        {
+            foreach (var forumName in appArgs.CodePlexForums)
+            {
+                var forumOutputFolder = Path.Combine(appArgs.OutputDirectory, forumName);
                 if (!Directory.Exists(forumOutputFolder))
                 {
                     Directory.CreateDirectory(forumOutputFolder);
                 }
 
-                DownloadForum(forumName, config.PageSize, forumOutputFolder);
+                DownloadForum(forumName, appArgs.PageSize, forumOutputFolder);
             }
         }
 
-        private static void DownloadForum(string forumName, string pageSize, string outputFolder)
+        private static void DownloadForum(string forumName, int pageSize, string outputFolder)
         {
             const int startPage = 0;
 
@@ -61,7 +93,7 @@ namespace CodeplexDiscussionDownload
         private static void DownloadDiscussionThreads(
             string forumName,
             int pageNumber,
-            string pageSize,
+            int pageSize,
             List<DiscussionThread> discussionThreads,
             string outputFolder)
         {
@@ -107,7 +139,7 @@ namespace CodeplexDiscussionDownload
             return discussionThread;
         }
 
-        private static HtmlDocument GetDiscussionThreadDocument(string forumName, int pageNumber, string pageSize, string outputFolder)
+        private static HtmlDocument GetDiscussionThreadDocument(string forumName, int pageNumber, int pageSize, string outputFolder)
         {
             var threadListUri = $"http://{forumName}.codeplex.com/discussions?searchText=&size={pageSize}&page={pageNumber}";
 
