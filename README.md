@@ -22,6 +22,9 @@ The name of the forum should align with the name of the project URL. For example
 CodePlexDiscussionDownload.exe -f Unity compositewpf
 ```
 
+## Installation
+Download and extract the [zip](https://github.com/randylevy/CodePlexDiscussionDownload/releases/download/v1.0.0/CodeplexDiscussionDownload.zip), then run the executable using a command window.
+
 # Output
 ## Folder Structure
 The app will create a directory in the outputFolder.  
